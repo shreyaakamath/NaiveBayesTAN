@@ -44,38 +44,54 @@ class Pd{
 		this.index = index;
 	}
 }
-public class NaiveBeyes {
+class SampleData{
 	HashMap<String,HashMap<String,Pd>> attributes;
 	List<List<String>> data;
+	List<String> featNames;
 	String[] classArr;
 	int[] classCnt;
+	float[] classProb;
 	int totalAttNo;
 	int totalData;
 	
-	public int getTotalData() {
-		return totalData;
-	}
-
-	public void setTotalData(int totalData) {
-		this.totalData = totalData;
-	}
-
-	public void setTotalAttNo(int totalAttNo) {
-		this.totalAttNo = totalAttNo;
-	}
-
-	NaiveBeyes(){
+	SampleData(){
 		attributes = new HashMap<String,HashMap<String,Pd>>();
 		data = new ArrayList<List<String>>();
 		classArr = new String[2];
 		classCnt= new int[2];
+		featNames= new ArrayList<String>();
+		classProb = new float[2];
+	}
+	
+	public int getTotalAttNo() {
+		return totalAttNo;
+	}
+	public void setTotalAttNo(int totalAttNo) {
+		this.totalAttNo = totalAttNo;
+	}
+	public int getTotalData() {
+		return totalData;
+	}
+	public void setTotalData(int totalData) {
+		this.totalData = totalData;
+	}
+}
+
+public class NaiveBeyes {
+	SampleData train;
+	SampleData test;
+	
+
+	NaiveBeyes(){
+		train=new SampleData();
+		test=new SampleData();
 	}
 	
 	/**
 	 * method that parses the input and stored it in the internal DS
 	 * @param name
 	 */
-	private void parseInput(String name) {
+	private void parseInput(String name,SampleData obj) {
 		try{
 			File fin= new File(name);
 			FileInputStream fis = new FileInputStream(fin);
@@ -104,14 +120,15 @@ public class NaiveBeyes {
 				      //if the feature is class then populate the class array else populate the inner hashmap with attribute to Pd objects
 				      
 				      if(feature.equals(classPattern)){
-				    	  classArr[0]=att.split(",")[0];
-				    	  classArr[1]=att.split(",")[1];
+				    	  obj.classArr[0]=att.split(",")[0].trim();
+				    	  obj.classArr[1]=att.split(",")[1].trim();
 				      }else{
 				    	  HashMap<String,Pd> inner = new HashMap<String,Pd>();
 					      for(String str:att.split(",")){
-						      inner.put(str,new Pd(i));
+						      inner.put(str.trim(),new Pd(i));
 					      }
-					      attributes.put(feature,inner);
+					      obj.attributes.put(feature,inner);
+					      obj.featNames.add(feature);
 				      }
 				      
 				} else if(line.substring(0, 2).equalsIgnoreCase(dataPattern)){
@@ -124,12 +141,12 @@ public class NaiveBeyes {
 				for(String str:line.split(",")){
 					inner.add(str);
 				}
-				data.add(inner);
+				obj.data.add(inner);
 			}
 			
 			//since attributes hashmap is full , populate the number_of_attributes variable. Populate the total number of data instances
-			setTotalAttNo(attributes.size());
-			setTotalData(data.size());
+			obj.setTotalAttNo(obj.attributes.size());
+			obj.setTotalData(obj.data.size());
 			br.close();
 			
 			//call this method to calculate the numbers for each class vars
@@ -142,9 +159,9 @@ public class NaiveBeyes {
 	/**
 	 * method that prints the attribute hashmap for verification
 	 */
-	void verify(){
+	void verify(SampleData obj){
 		System.out.println("-----------Attributes hashmap-------");
-		for(Map.Entry<String,HashMap<String,Pd>> entry:attributes.entrySet()){
+		for(Map.Entry<String,HashMap<String,Pd>> entry:obj.attributes.entrySet()){
 			System.out.println(entry.getKey()+"->");
 			for(Map.Entry<String,Pd> inner: entry.getValue().entrySet()){
 				System.out.print(inner.getKey()+" ->");
@@ -154,8 +171,8 @@ public class NaiveBeyes {
 			System.out.println();
 		}
 		
-		System.out.println("class values --- "+classArr[0]+","+classArr[1]);
-		System.out.println("total att ----"+totalAttNo);
+		System.out.println("class values --- "+obj.classArr[0]+","+obj.classArr[1]);
+		System.out.println("total att ----"+obj.totalAttNo);
 	}
  
 	/**
@@ -175,12 +192,14 @@ public class NaiveBeyes {
 	 */
 	void noClassVars(){
 		int c1=0;int c2=0;
-		for(List<String> rowData:data){
-			if(rowData.get(totalAttNo).trim().equalsIgnoreCase(classArr[0].trim())) c1++;
-			if(rowData.get(totalAttNo).trim().equalsIgnoreCase(classArr[1].trim())) c2++;
+		for(List<String> rowData:train.data){
+			if(rowData.get(train.totalAttNo).trim().equalsIgnoreCase(train.classArr[0].trim())) c1++;
+			if(rowData.get(train.totalAttNo).trim().equalsIgnoreCase(train.classArr[1].trim())) c2++;
 		}
-		classCnt[0]=c1;
-		classCnt[1]=c2;
+		train.classCnt[0]=c1;
+		train.classCnt[1]=c2;
+		train.classProb[0]=(float)c1/train.totalData;
+		train.classProb[1]=(float)c2/train.totalData;
 		
 	}
 	
@@ -188,18 +207,18 @@ public class NaiveBeyes {
 	 * computer the probability distribution and store it in the attributes hashmap
 	 */
 	void computePd(){
-		for(Map.Entry<String,HashMap<String,Pd>> allAttr:attributes.entrySet()){
+		for(Map.Entry<String,HashMap<String,Pd>> allAttr:train.attributes.entrySet()){
 			int count1=0;int count2=0;float pd1;float pd2;
 			int typesCnt=allAttr.getValue().size();//number of attributed for this one feature
 			for(Map.Entry<String,Pd> allFeat: allAttr.getValue().entrySet()){
 				String feature = allFeat.getKey();//wrong name this is attr not feature
 				Pd obj=allFeat.getValue();
 				int i=obj.getIndex();
-				for(List<String> rowData:data){
+				for(List<String> rowData:train.data){
 					String rowi=rowData.get(i).trim();
-					String rowEnd=rowData.get(totalAttNo).trim();
-					String c1=classArr[0].trim();
-					String c2=classArr[1].trim();
+					String rowEnd=rowData.get(train.totalAttNo).trim();
+					String c1=train.classArr[0].trim();
+					String c2=train.classArr[1].trim();
 					
 					if(rowi.trim().equalsIgnoreCase(feature.trim())&& rowEnd.trim().equalsIgnoreCase(c1.trim())) {
 						count1++;
@@ -208,22 +227,58 @@ public class NaiveBeyes {
 						count2++;
 					}
 				}
-				pd1=laplace(count1,typesCnt,classCnt[0]);
-				pd2=laplace(count2,typesCnt,classCnt[1]);
+				pd1=laplace(count1,typesCnt,train.classCnt[0]);
+				pd2=laplace(count2,typesCnt,train.classCnt[1]);
 				obj.setC1(pd1);
 				obj.setC2(pd2);
 			}
 		}
 	}
 	
+	/**
+	 * predict the class for the test data based on training data for naive bayes
+	 */
+	void predictClass(){
+		float prod1=1;float prod2=1;
+		for(int i=0;i<train.totalAttNo;i++){
+			System.out.println(train.featNames.get(i)+" "+"class");
+		}
+		System.out.println();
+		int count=0;
+		for(List<String> rowData:test.data){
+			prod1=train.classProb[0];prod2=train.classProb[1];
+			String op;
+			for(int i=0;i<rowData.size()-1;i++){
+				String val = rowData.get(i).trim();
+				String feature = train.featNames.get(i);
+				HashMap<String,Pd> hm = train.attributes.get(feature);
+				Pd obj=hm.get(val);
+				prod1*=obj.getC1();
+				prod2*=obj.getC2();
+			}
+			if(prod1>prod2){
+				op=test.classArr[0];
+			}else{
+				op=test.classArr[1];
+			}
+			if(op.trim().equalsIgnoreCase(rowData.get(train.totalAttNo).trim())) count++;
+			System.out.println(op+" "+rowData.get(train.totalAttNo));
+		}
+		System.out.println();
+		System.out.println(count);
+		
+	}
 	
 	public static void main(String args[]){
 		NaiveBeyes nb= new NaiveBeyes();
-		nb.parseInput("lymph_train.arff");
-		nb.computePd();
-		nb.verify();
-		System.out.println();
 		
+		nb.parseInput("lymph_train.arff",nb.train);
+		nb.computePd();
+		//nb.verify(nb.train);
+		nb.parseInput("lymph_test.arff",nb.test);
+		//nb.verify(nb.train);
+		System.out.println();
+		nb.predictClass();
 		
 	}
 }
