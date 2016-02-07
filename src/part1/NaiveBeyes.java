@@ -6,16 +6,18 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 class Pd{
-	float c1;
+//	float c1;
+	double c1;
 	int index;
-	float c2;
+//	float c2;
+	double c2;
 	
 	Pd(){
 		c1=0;
@@ -25,16 +27,16 @@ class Pd{
 		this.index=i;
 	}
 	
-	public float getC1() {
+	public double getC1() {
 		return c1;
 	}
-	public void setC1(float c1) {
+	public void setC1(double c1) {
 		this.c1 = c1;
 	}
-	public float getC2() {
+	public double getC2() {
 		return c2;
 	}
-	public void setC2(float c2) {
+	public void setC2(double c2) {
 		this.c2 = c2;
 	}
 	public int getIndex() {
@@ -45,22 +47,24 @@ class Pd{
 	}
 }
 class SampleData{
-	HashMap<String,HashMap<String,Pd>> attributes;
+	LinkedHashMap<String,LinkedHashMap<String,Pd>> attributes;
 	List<List<String>> data;
 	List<String> featNames;
 	String[] classArr;
 	int[] classCnt;
-	float[] classProb;
+	double[] classProb;
 	int totalAttNo;
 	int totalData;
+	List<List<Double>> adjList;
 	
 	SampleData(){
-		attributes = new HashMap<String,HashMap<String,Pd>>();
+		attributes = new LinkedHashMap<String,LinkedHashMap<String,Pd>>();
 		data = new ArrayList<List<String>>();
 		classArr = new String[2];
 		classCnt= new int[2];
 		featNames= new ArrayList<String>();
-		classProb = new float[2];
+		classProb = new double[2];
+		adjList= new ArrayList<List<Double>>();
 	}
 	
 	public int getTotalAttNo() {
@@ -101,7 +105,7 @@ public class NaiveBeyes {
 			String attPattern="@a";
 			String classPattern="class";
 			int i=-1;
-			//parse the line one at a time. break when data is found. put the attributes in HashMap<String,HashMap<String,Pd>> attributes
+			//parse the line one at a time. break when data is found. put the attributes in LinkedHashMap<String,LinkedHashMap<String,Pd>> attributes
 			while ((line = br.readLine()) != null) {
 				//System.out.println(line.substring(0,2));
 				if(line.substring(0,2).equalsIgnoreCase(attPattern)){
@@ -117,13 +121,13 @@ public class NaiveBeyes {
 				      String feature = m1.group(1);
 				      String att=m2.group(1);
 				      
-				      //if the feature is class then populate the class array else populate the inner hashmap with attribute to Pd objects
+				      //if the feature is class then populate the class array else populate the inner LinkedHashMap with attribute to Pd objects
 				      
 				      if(feature.equals(classPattern)){
 				    	  obj.classArr[0]=att.split(",")[0].trim();
 				    	  obj.classArr[1]=att.split(",")[1].trim();
 				      }else{
-				    	  HashMap<String,Pd> inner = new HashMap<String,Pd>();
+				    	  LinkedHashMap<String,Pd> inner = new LinkedHashMap<String,Pd>();
 					      for(String str:att.split(",")){
 						      inner.put(str.trim(),new Pd(i));
 					      }
@@ -144,7 +148,7 @@ public class NaiveBeyes {
 				obj.data.add(inner);
 			}
 			
-			//since attributes hashmap is full , populate the number_of_attributes variable. Populate the total number of data instances
+			//since attributes LinkedHashMap is full , populate the number_of_attributes variable. Populate the total number of data instances
 			obj.setTotalAttNo(obj.attributes.size());
 			obj.setTotalData(obj.data.size());
 			br.close();
@@ -157,11 +161,11 @@ public class NaiveBeyes {
 	}
 	
 	/**
-	 * method that prints the attribute hashmap for verification
+	 * method that prints the attribute LinkedHashMap for verification
 	 */
 	void verify(SampleData obj){
-		System.out.println("-----------Attributes hashmap-------");
-		for(Map.Entry<String,HashMap<String,Pd>> entry:obj.attributes.entrySet()){
+		System.out.println("-----------Attributes LinkedHashMap-------");
+		for(Map.Entry<String,LinkedHashMap<String,Pd>> entry:obj.attributes.entrySet()){
 			System.out.println(entry.getKey()+"->");
 			for(Map.Entry<String,Pd> inner: entry.getValue().entrySet()){
 				System.out.print(inner.getKey()+" ->");
@@ -182,8 +186,8 @@ public class NaiveBeyes {
 	 * @param classCnt
 	 * @return
 	 */
-	float laplace(int jointCnt,int typesCnt,int classCnt){
-		float ret=(float)(jointCnt+1)/(typesCnt+classCnt);
+	double laplace(int jointCnt,int typesCnt,int classCnt){
+		double ret=(float)(jointCnt+1)/(typesCnt+classCnt);
 		return ret;
 	}
 	
@@ -198,19 +202,20 @@ public class NaiveBeyes {
 		}
 		train.classCnt[0]=c1;
 		train.classCnt[1]=c2;
-		train.classProb[0]=(float)c1/train.totalData;
-		train.classProb[1]=(float)c2/train.totalData;
+		train.classProb[0]=laplace(c1,train.totalData,2);
+		train.classProb[1]=laplace(c2,train.totalData,2);
 		
 	}
 	
 	/**
-	 * computer the probability distribution and store it in the attributes hashmap
+	 * computer the probability distribution and store it in the attributes LinkedHashMap
 	 */
 	void computePd(){
-		for(Map.Entry<String,HashMap<String,Pd>> allAttr:train.attributes.entrySet()){
-			int count1=0;int count2=0;float pd1;float pd2;
+		for(Map.Entry<String,LinkedHashMap<String,Pd>> allAttr:train.attributes.entrySet()){
+			double pd1;double pd2;
 			int typesCnt=allAttr.getValue().size();//number of attributed for this one feature
 			for(Map.Entry<String,Pd> allFeat: allAttr.getValue().entrySet()){
+				int count1=0;int count2=0;
 				String feature = allFeat.getKey();//wrong name this is attr not feature
 				Pd obj=allFeat.getValue();
 				int i=obj.getIndex();
@@ -219,16 +224,25 @@ public class NaiveBeyes {
 					String rowEnd=rowData.get(train.totalAttNo).trim();
 					String c1=train.classArr[0].trim();
 					String c2=train.classArr[1].trim();
-					
+					if(feature.trim().equalsIgnoreCase("oval")){
+//					System.out.println(rowi+"=="+feature+" -> "+rowi.trim().equalsIgnoreCase(feature.trim())+" "+rowEnd+" == "+c1+" ->"+rowEnd.trim().equalsIgnoreCase(c1.trim()));
+//					System.out.println(rowi+"=="+feature+" -> "+rowi.trim().equalsIgnoreCase(feature.trim())+" "+rowEnd+" == "+c2+" ->"+rowEnd.trim().equalsIgnoreCase(c2.trim()));
+					}
 					if(rowi.trim().equalsIgnoreCase(feature.trim())&& rowEnd.trim().equalsIgnoreCase(c1.trim())) {
 						count1++;
+						if(feature.trim().equalsIgnoreCase("oval")){
+							System.out.println("count="+count1);
+							System.out.println(rowi+"=="+feature+" -> "+rowi.trim().equalsIgnoreCase(feature.trim())+" "+rowEnd+" == "+c1+" ->"+rowEnd.trim().equalsIgnoreCase(c1.trim()));
+						}
 					}
 					if(rowi.trim().equalsIgnoreCase(feature.trim())&& rowEnd.trim().equalsIgnoreCase(c2.trim())) {
 						count2++;
 					}
 				}
+				System.out.println(feature+" - "+"count1= "+count1+" count2="+count2);
 				pd1=laplace(count1,typesCnt,train.classCnt[0]);
 				pd2=laplace(count2,typesCnt,train.classCnt[1]);
+				System.out.println();
 				obj.setC1(pd1);
 				obj.setC2(pd2);
 			}
@@ -239,7 +253,7 @@ public class NaiveBeyes {
 	 * predict the class for the test data based on training data for naive bayes
 	 */
 	void predictClass(){
-		float prod1=1;float prod2=1;
+		double prod1=1;double prod2=1;
 		for(int i=0;i<train.totalAttNo;i++){
 			System.out.println(train.featNames.get(i)+" "+"class");
 		}
@@ -247,18 +261,18 @@ public class NaiveBeyes {
 		int count=0;
 		for(List<String> rowData:test.data){
 			prod1=train.classProb[0];prod2=train.classProb[1];
-			String op;
+			String op=null;
 			for(int i=0;i<rowData.size()-1;i++){
 				String val = rowData.get(i).trim();
 				String feature = train.featNames.get(i);
-				HashMap<String,Pd> hm = train.attributes.get(feature);
+				LinkedHashMap<String,Pd> hm = train.attributes.get(feature);
 				Pd obj=hm.get(val);
 				prod1*=obj.getC1();
 				prod2*=obj.getC2();
 			}
-			if(prod1>prod2){
+			if(Double.compare(prod1,prod2)>=0){
 				op=test.classArr[0];
-			}else{
+			}else if(Double.compare(prod1,prod2)<0){
 				op=test.classArr[1];
 			}
 			if(op.trim().equalsIgnoreCase(rowData.get(train.totalAttNo).trim())) count++;
@@ -269,16 +283,79 @@ public class NaiveBeyes {
 		
 	}
 	
+	void computeWeight(){
+		for(Map.Entry<String,LinkedHashMap<String,Pd>> outer: train.attributes.entrySet()){
+			String key1=outer.getKey();//lymphatics
+			LinkedHashMap<String,Pd> value1=outer.getValue();//{ normal, arched, deformed, displaced}
+			List<Double> temp_list = new ArrayList<Double>();
+			int xi_len=value1.size();
+			for(Map.Entry<String,LinkedHashMap<String,Pd>> inner: train.attributes.entrySet()){
+				double sum=0;
+				String key2=inner.getKey();// block_of_affere
+				LinkedHashMap<String,Pd> value2=inner.getValue();//{ no, yes}
+				int xj_len=value2.size();
+				if(key1.trim().equalsIgnoreCase(key2.trim())){temp_list.add(new Double(-1));continue;}
+				//now iterate over  each of the attributes of outer and inner feature
+				for(Map.Entry<String, Pd> outer1:value1.entrySet()){//normal
+					double xi_y=outer1.getValue().getC1();
+					double xi_y_dash=outer1.getValue().getC2();
+					int i=outer1.getValue().getIndex();
+					String val1=outer1.getKey();
+					for(Map.Entry<String,Pd> inner1:value2.entrySet()){//{no , yes}
+						double xj_y=inner1.getValue().getC1();
+						double xj_y_dash=inner1.getValue().getC2();
+						int j=inner1.getValue().getIndex();
+						String val2=inner1.getKey();
+						double numerator1;double denominator1;double multiplicant1;
+						double numerator2;double denominator2;double multiplicant2;
+						denominator1=xi_y*xj_y;
+						denominator2=xi_y_dash*xj_y_dash;
+						int count_xi_xj_y=0;int count_xi_xj_y_dash=0;
+						//get xi,xj,y count values
+						for(List<String> rowData:train.data){
+							if(rowData.get(i).trim().equalsIgnoreCase(val1.trim()) &&
+									rowData.get(j).trim().equalsIgnoreCase(val2.trim()) &&
+									rowData.get(train.totalAttNo).trim().equalsIgnoreCase(train.classArr[0].trim())) {
+								count_xi_xj_y++;
+							}
+							if(rowData.get(i).trim().equalsIgnoreCase(val1.trim()) &&
+									rowData.get(j).trim().equalsIgnoreCase(val2.trim()) &&
+									rowData.get(train.totalAttNo).trim().equalsIgnoreCase(train.classArr[1].trim())) {
+								count_xi_xj_y_dash++;
+							}
+						}
+						numerator1=laplace(count_xi_xj_y, xi_len*xj_len, train.classCnt[0]);
+						numerator2=laplace(count_xi_xj_y_dash, xi_len*xj_len, train.classCnt[1]);
+						multiplicant1=laplace(count_xi_xj_y, xi_len*xj_len*2, train.totalData);
+						multiplicant2=laplace(count_xi_xj_y_dash, xi_len*xj_len*2, train.totalData);
+						double weight1=(multiplicant1*(Math.log(numerator1/denominator1)/Math.log(2)));
+						double weight2=multiplicant2*(Math.log(numerator2/denominator2)/Math.log(2));
+						sum+=weight1+weight2;
+					}
+				}
+				temp_list.add(sum);	
+			}
+			train.adjList.add(temp_list);
+		}
+	}
+	void printWeight(){
+		for(List<Double> list : train.adjList){
+			for(Double d: list) System.out.print(d+" ");
+			System.out.println();
+		}
+	}
 	public static void main(String args[]){
 		NaiveBeyes nb= new NaiveBeyes();
 		
 		nb.parseInput("lymph_train.arff",nb.train);
 		nb.computePd();
-		//nb.verify(nb.train);
-		nb.parseInput("lymph_test.arff",nb.test);
-		//nb.verify(nb.train);
-		System.out.println();
-		nb.predictClass();
+		nb.computeWeight();
+		nb.printWeight();
+//		nb.verify(nb.train);
+//		nb.parseInput("lymph_test.arff",nb.test);
+//		nb.verify(nb.train);
+//		System.out.println();
+//		nb.predictClass();
 		
 	}
 }
