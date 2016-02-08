@@ -12,19 +12,38 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-class Pd{
-//	float c1;
+class Edge{
+	int v ;
+	int u;
+	double weight;
+	Edge(int v, int u, double weight){
+		this.v=v;//parent
+		this.u=u;//child
+		this.weight=weight;
+	}
+}
+class TanMeta{
 	double c1;
-	int index;
-//	float c2;
 	double c2;
+	TanMeta(double c1, double c2){
+		this.c1=c1;this.c2=c2;
+	}
+}
+class Pd{
+	double c1;
+	double c2;
+	int index;
+	LinkedHashMap<String,TanMeta> hm;
+
 	
 	Pd(){
 		c1=0;
 		c2=0;
+		hm=new LinkedHashMap<String,TanMeta>();
 	}
 	Pd(int i){
 		this.index=i;
+		hm=new LinkedHashMap<String,TanMeta>();
 	}
 	
 	public double getC1() {
@@ -56,6 +75,8 @@ class SampleData{
 	int totalAttNo;
 	int totalData;
 	List<List<Double>> adjList;
+	List<Edge> mst;
+	LinkedHashMap<Integer,Integer> parent;
 	
 	SampleData(){
 		attributes = new LinkedHashMap<String,LinkedHashMap<String,Pd>>();
@@ -65,6 +86,8 @@ class SampleData{
 		featNames= new ArrayList<String>();
 		classProb = new double[2];
 		adjList= new ArrayList<List<Double>>();
+		mst=new ArrayList<Edge>();
+		parent = new LinkedHashMap<Integer,Integer>();
 	}
 	
 	public int getTotalAttNo() {
@@ -177,6 +200,35 @@ public class NaiveBeyes {
 		
 		System.out.println("class values --- "+obj.classArr[0]+","+obj.classArr[1]);
 		System.out.println("total att ----"+obj.totalAttNo);
+		
+		System.out.println("------Adjancency matrix-----");
+		for(List<Double> list : train.adjList){
+			for(Double d: list) System.out.print(d+" ");
+			System.out.println();
+		}
+		
+		System.out.println("-----MST----");
+		for(Edge e:train.mst){
+			System.out.println("("+e.v+","+e.u+")");
+		}
+		
+		System.out.println("------Parent hash child-> parent ----");
+		for(Map.Entry<Integer,Integer> entry:train.parent.entrySet()){
+			System.out.println(entry.getKey()+"---"+entry.getValue());
+		}
+		
+		System.out.println("TAN cpd");
+		for(Map.Entry<String,LinkedHashMap<String,Pd>> entry:train.attributes.entrySet()){
+			for(Map.Entry<String,Pd> map:entry.getValue().entrySet()){
+				System.out.print(map.getKey()+"--->");
+				LinkedHashMap<String, TanMeta> hm = map.getValue().hm;
+				for(Map.Entry<String,TanMeta> inner:hm.entrySet()){
+					System.out.print(inner.getKey()+"---"+inner.getValue().c1+" ,"+inner.getValue().c2);
+				}
+				System.out.println();
+			}
+			System.out.println("==================");
+		}
 	}
  
 	/**
@@ -224,25 +276,16 @@ public class NaiveBeyes {
 					String rowEnd=rowData.get(train.totalAttNo).trim();
 					String c1=train.classArr[0].trim();
 					String c2=train.classArr[1].trim();
-					if(feature.trim().equalsIgnoreCase("oval")){
-//					System.out.println(rowi+"=="+feature+" -> "+rowi.trim().equalsIgnoreCase(feature.trim())+" "+rowEnd+" == "+c1+" ->"+rowEnd.trim().equalsIgnoreCase(c1.trim()));
-//					System.out.println(rowi+"=="+feature+" -> "+rowi.trim().equalsIgnoreCase(feature.trim())+" "+rowEnd+" == "+c2+" ->"+rowEnd.trim().equalsIgnoreCase(c2.trim()));
-					}
 					if(rowi.trim().equalsIgnoreCase(feature.trim())&& rowEnd.trim().equalsIgnoreCase(c1.trim())) {
 						count1++;
-						if(feature.trim().equalsIgnoreCase("oval")){
-							System.out.println("count="+count1);
-							System.out.println(rowi+"=="+feature+" -> "+rowi.trim().equalsIgnoreCase(feature.trim())+" "+rowEnd+" == "+c1+" ->"+rowEnd.trim().equalsIgnoreCase(c1.trim()));
-						}
 					}
 					if(rowi.trim().equalsIgnoreCase(feature.trim())&& rowEnd.trim().equalsIgnoreCase(c2.trim())) {
 						count2++;
 					}
 				}
-				System.out.println(feature+" - "+"count1= "+count1+" count2="+count2);
+//				System.out.println(feature+" - "+"count1= "+count1+" count2="+count2);
 				pd1=laplace(count1,typesCnt,train.classCnt[0]);
 				pd2=laplace(count2,typesCnt,train.classCnt[1]);
-				System.out.println();
 				obj.setC1(pd1);
 				obj.setC2(pd2);
 			}
@@ -282,7 +325,9 @@ public class NaiveBeyes {
 		System.out.println(count);
 		
 	}
-	
+	/**
+	 * TAN compute weight between edges
+	 */
 	void computeWeight(){
 		for(Map.Entry<String,LinkedHashMap<String,Pd>> outer: train.attributes.entrySet()){
 			String key1=outer.getKey();//lymphatics
@@ -338,24 +383,179 @@ public class NaiveBeyes {
 			train.adjList.add(temp_list);
 		}
 	}
-	void printWeight(){
-		for(List<Double> list : train.adjList){
-			for(Double d: list) System.out.print(d+" ");
-			System.out.println();
+	
+	/**
+	 * compute maximal spanning tree using Prim
+	 */
+	void primMst(){
+		List<Integer> vnew= new ArrayList<Integer>();
+		List<Integer> allV= new ArrayList<Integer>();
+		for(int i=0;i<train.totalAttNo;i++) allV.add(i);
+		vnew.add(allV.get(0));
+		Edge chosenEdge;int chosenVertex;
+		
+		while(vnew.size()<allV.size()){
+			double max=-1;chosenEdge=null;chosenVertex=0;
+			for(int u:vnew){
+				List<Double> temp=train.adjList.get(u);
+				for(int j=0;j<temp.size();j++){
+					if(!vnew.contains(new Integer(j))){
+						double wt=temp.get(j);
+						if(Double.compare(wt,max)>0){
+							max=wt;
+							int parent=u;
+							int other=j;
+							chosenVertex=j;
+							if(j==0||u==0) {
+								if(j==0) {parent=j;other=u;}
+								else {parent=u;other=j;}
+							}
+							chosenEdge=new Edge(parent,other,wt);
+						}
+					}
+				}
+			}
+			vnew.add(chosenVertex);
+			train.mst.add(chosenEdge);
+		}
+		fillParentHash();
+	}
+	
+	/**
+	 * Utility function to organise nodes as parent child
+	 */
+	void fillParentHash(){
+		train.parent.put(0,train.totalAttNo);
+		for(Edge e:train.mst){
+			//put child -> parent
+			train.parent.put(e.u,e.v);
+		}
+	}
+	
+	/**
+	 * computer CPT of all attributes
+	 */
+	void computePdForTan(){
+		int i=0;
+		for(Map.Entry<String, LinkedHashMap<String,Pd>> entry:train.attributes.entrySet()){
+			int parentIndex=train.parent.get(i);
+			if(parentIndex==train.totalAttNo) {i++;continue;}
+			String parentVal=train.featNames.get(parentIndex);
+			for(Map.Entry<String,Pd> map:entry.getValue().entrySet()){
+				String x_value=map.getKey();
+				Pd obj=map.getValue();
+				int x_index=obj.index;
+				int len_x=entry.getValue().size();
+				for(Map.Entry<String, Pd> mapinner:train.attributes.get(parentVal).entrySet()){
+					String y_value=mapinner.getKey();
+					Pd obj1=mapinner.getValue();
+					int y_index=obj1.index;
+					int cnt_x_parent_y=0;int cnt_x_parent_y_dash=0;
+					int cnt_parent_y =0;int cnt_parent_y_dash=0;
+					int len_y=train.attributes.get(parentVal).size();
+					for(List<String> rowData:train.data){
+						// calculate cnt_parent_y , cnt_parent_y_dash
+						if(rowData.get(y_index).trim().equalsIgnoreCase(y_value.trim()) &&
+								rowData.get(train.totalAttNo).trim().equalsIgnoreCase(train.classArr[0].trim())){
+							cnt_parent_y++;
+						}
+						if(rowData.get(y_index).trim().equalsIgnoreCase(y_value.trim()) &&
+								rowData.get(train.totalAttNo).trim().equalsIgnoreCase(train.classArr[1].trim())){
+							cnt_parent_y_dash++;
+						}
+						
+						//cnt_x_parent_y , cnt_x_parent_y_dash
+						if(rowData.get(y_index).trim().equalsIgnoreCase(y_value.trim()) &&
+								rowData.get(train.totalAttNo).trim().equalsIgnoreCase(train.classArr[0].trim()) &&
+								rowData.get(x_index).trim().equalsIgnoreCase(x_value.trim())){
+							cnt_x_parent_y++;
+						}
+						if(rowData.get(y_index).trim().equalsIgnoreCase(y_value.trim()) &&
+								rowData.get(train.totalAttNo).trim().equalsIgnoreCase(train.classArr[1].trim()) &&
+								rowData.get(x_index).trim().equalsIgnoreCase(x_value.trim())){
+							cnt_x_parent_y_dash++;
+						}
+					}
+					double pd1=laplace(cnt_x_parent_y,cnt_parent_y,len_x);
+					double pd2=laplace(cnt_x_parent_y_dash,cnt_parent_y_dash,len_x);
+					obj.hm.put(y_value,new TanMeta(pd1, pd2));
+				}
+				
+			}
+			i++;
+		}
+	}
+	
+	/**
+	 * predict class based on tan
+	 */
+	void tanPredict(){
+		int match=0;
+		for(List<String> rowData:test.data){
+			double prod1=1;double prod2=1;
+			for(int i=0;i<rowData.size()-1;i++){
+				String featName = train.featNames.get(i);
+				String x_value=rowData.get(i);
+				int parentIndex=train.parent.get(i);
+				if(parentIndex==train.totalAttNo){
+					Pd obj=train.attributes.get(featName).get(x_value);
+					prod1*=obj.c1;
+					prod2*=obj.c2;
+				}
+				else{
+				String y_value=rowData.get(parentIndex);
+				Pd obj=train.attributes.get(featName).get(x_value);
+				prod1*=obj.hm.get(y_value).c1;
+				prod2*=obj.hm.get(y_value).c2;
+				}
+			}
+			prod1*=train.classProb[0];
+			prod2*=train.classProb[1];
+			if(prod1>prod2){
+				if(train.classArr[0].trim().equalsIgnoreCase(rowData.get(train.totalAttNo))) match++;
+				System.out.println(train.classArr[0]+" "+rowData.get(train.totalAttNo));
+			}else{
+				if(train.classArr[1].trim().equalsIgnoreCase(rowData.get(train.totalAttNo))) match++;
+				System.out.println(train.classArr[1]+" "+rowData.get(train.totalAttNo));
+			}
+		}
+		System.out.println();
+		System.out.println(match);
+	}
+	
+	/**
+	 * print the network/tree constructed for TAN 
+	 */
+	void printTanNw(){
+		System.out.println(train.featNames.get(0)+" "+"class");
+		for(int i=1;i<train.totalAttNo;i++){
+			String self= train.featNames.get(i);
+			int parentIndex=train.parent.get(i);
+			String parentVal= train.featNames.get(parentIndex);
+			System.out.println(self+" "+parentVal+" class");
 		}
 	}
 	public static void main(String args[]){
 		NaiveBeyes nb= new NaiveBeyes();
-		
-		nb.parseInput("lymph_train.arff",nb.train);
-		nb.computePd();
-		nb.computeWeight();
-		nb.printWeight();
-//		nb.verify(nb.train);
-//		nb.parseInput("lymph_test.arff",nb.test);
-//		nb.verify(nb.train);
-//		System.out.println();
-//		nb.predictClass();
+		char val='t';
+		if(val=='n'){
+			nb.parseInput("lymph_train.arff",nb.train);
+			nb.computePd();
+			nb.parseInput("lymph_test.arff",nb.test);
+			nb.predictClass();
+		}
+		else if (val=='t'){
+			nb.parseInput("lymph_train.arff",nb.train);
+			nb.computePd();
+			nb.computeWeight();
+			nb.primMst();
+			nb.computePdForTan();
+	//		nb.verify(nb.train);
+			nb.parseInput("lymph_test.arff",nb.test);
+			nb.printTanNw();
+			System.out.println();
+			nb.tanPredict();
+		}
 		
 	}
 }
