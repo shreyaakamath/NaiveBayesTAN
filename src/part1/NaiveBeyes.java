@@ -3,15 +3,46 @@ package part1;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import weka.core.Attribute;
+import weka.core.Instance;
+import weka.core.Instances;
+
+class PrimHelper{
+	Edge chosenEdge;
+	int chosenVertex;
+	double weight;
+	PrimHelper(Edge e, int v,double w){
+		this.chosenEdge=e;
+		this.chosenVertex=v;
+		this.weight=w;
+	}
+}
+
+class PrimComparator implements Comparator<PrimHelper>{
+	public int compare(PrimHelper obj1, PrimHelper obj2){
+		if(obj1.weight<obj2.weight) return -1;
+		else if (obj1.weight>obj2.weight) return 1;
+		else {
+			if(obj1.chosenVertex<obj2.chosenVertex) return -1;
+			else if (obj1.chosenVertex>obj2.chosenVertex) return 1;
+			else return 0;
+		}
+	}
+}
 class Edge{
 	int v ;
 	int u;
@@ -114,6 +145,60 @@ public class NaiveBeyes {
 		test=new SampleData();
 	}
 	
+	void test(String name,SampleData obj){
+		try {
+		BufferedReader reader = new BufferedReader(new FileReader(name));
+		Instances data = new Instances(reader);
+		
+		reader.close();
+		data.setClassIndex(data.numAttributes() - 1);
+		//read in attributes and values
+		for(int i=0;i<data.numAttributes();i++){
+			Attribute attr = data.attribute(i);
+			String allAttr=attr.toString();
+			
+			String feature=attr.name();
+			int num=attr.numValues();
+			String attrRegex="\\{(.*?)\\}";
+			Pattern p2 = Pattern.compile(attrRegex);
+			Matcher m2 = p2.matcher(allAttr);
+		    m2.find();
+		    String att=m2.group(1);
+		    String[] each = att.split(",");
+		    
+		     if(feature.equals("class")){
+		    	  obj.classArr[0]=each[0].trim();
+		    	  obj.classArr[1]=each[1].trim();
+		      }else{
+		    	  LinkedHashMap<String,Pd> inner = new LinkedHashMap<String,Pd>();
+		    	  for(int k=0;k<each.length;k++){
+		    		  inner.put(each[k].trim(),new Pd(i));
+		    	  }
+			      obj.attributes.put(feature,inner);
+			      obj.featNames.add(feature);
+		      }
+		}
+		
+		// put this rowData into train list
+		for (int i = 0;i < data.numInstances()-1;i++){
+			Instance inst = data.instance(i);
+			List<String> inner = new ArrayList<String>();
+			for(String str:inst.toString().split(",")){
+//				System.out.print(str+" ");
+				inner.add(str);
+			}
+			obj.data.add(inner);
+			
+		}
+		
+		obj.setTotalAttNo(obj.attributes.size());
+		obj.setTotalData(obj.data.size());
+		//call this method to calculate the numbers for each class vars
+		noClassVars();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 	/**
 	 * method that parses the input and stored it in the internal DS
 	 * @param name
@@ -239,7 +324,7 @@ public class NaiveBeyes {
 	 * @return
 	 */
 	double laplace(int jointCnt,int typesCnt,int classCnt){
-		double ret=(float)(jointCnt+1)/(typesCnt+classCnt);
+		double ret=(double)(jointCnt+1)/(typesCnt+classCnt);
 		return ret;
 	}
 	
@@ -313,13 +398,20 @@ public class NaiveBeyes {
 				prod1*=obj.getC1();
 				prod2*=obj.getC2();
 			}
+			double posterior=prod1+prod2;
+			double ans1=prod1/posterior;
+			double ans2=prod2/posterior;
+			double finalans=0;
 			if(Double.compare(prod1,prod2)>=0){
 				op=test.classArr[0];
+				finalans=ans1;
 			}else if(Double.compare(prod1,prod2)<0){
 				op=test.classArr[1];
+				finalans=ans2;
 			}
+			
 			if(op.trim().equalsIgnoreCase(rowData.get(train.totalAttNo).trim())) count++;
-			System.out.println(op+" "+rowData.get(train.totalAttNo));
+			System.out.println(op+" "+rowData.get(train.totalAttNo)+" "+finalans);
 		}
 		System.out.println();
 		System.out.println(count);
@@ -421,6 +513,43 @@ public class NaiveBeyes {
 		fillParentHash();
 	}
 	
+	void primMst1(){
+		List<Integer> vnew= new ArrayList<Integer>();
+		List<Integer> allV= new ArrayList<Integer>();
+		for(int i=0;i<train.totalAttNo;i++) allV.add(i);
+		vnew.add(allV.get(0));
+		Edge chosenEdge;int chosenVertex;
+		
+		while(vnew.size()<allV.size()){
+			List<PrimHelper> toSort=new ArrayList<PrimHelper>();
+			double max=-1;chosenEdge=null;chosenVertex=0;
+			for(int u:vnew){
+				List<Double> temp=train.adjList.get(u);
+				for(int j=0;j<temp.size();j++){
+					if(!vnew.contains(new Integer(j))){
+						double wt=temp.get(j);
+						if(Double.compare(wt,max)>=0){
+							max=wt;
+							int parent=u;
+							int other=j;
+							chosenVertex=j;
+							if(j==0||u==0) {
+								if(j==0) {parent=j;other=u;}
+								else {parent=u;other=j;}
+							}
+							chosenEdge=new Edge(parent,other,wt);
+							PrimHelper ph= new PrimHelper(chosenEdge, chosenVertex,wt);
+							toSort.add(ph);
+						}
+					}
+				}
+			}
+			Collections.sort(toSort,new PrimComparator());
+			vnew.add(toSort.get(0).chosenVertex);
+			train.mst.add(toSort.get(0).chosenEdge);
+		}
+		fillParentHash();
+	}
 	/**
 	 * Utility function to organise nodes as parent child
 	 */
@@ -509,14 +638,21 @@ public class NaiveBeyes {
 				prod2*=obj.hm.get(y_value).c2;
 				}
 			}
+			NumberFormat formatter = new DecimalFormat("#0.000000000000");
 			prod1*=train.classProb[0];
 			prod2*=train.classProb[1];
+			double posterior=prod1+prod2;
+			double ans1=prod1/posterior;
+			double ans2=prod2/posterior;
+			
 			if(prod1>prod2){
 				if(train.classArr[0].trim().equalsIgnoreCase(rowData.get(train.totalAttNo))) match++;
-				System.out.println(train.classArr[0]+" "+rowData.get(train.totalAttNo));
+				System.out.print(train.classArr[0]+" "+rowData.get(train.totalAttNo)+" ");
+				System.out.println(formatter.format(ans1));
 			}else{
 				if(train.classArr[1].trim().equalsIgnoreCase(rowData.get(train.totalAttNo))) match++;
-				System.out.println(train.classArr[1]+" "+rowData.get(train.totalAttNo));
+				System.out.print(train.classArr[1]+" "+rowData.get(train.totalAttNo)+" ");
+				System.out.println(formatter.format(ans2));
 			}
 		}
 		System.out.println();
@@ -537,21 +673,25 @@ public class NaiveBeyes {
 	}
 	public static void main(String args[]){
 		NaiveBeyes nb= new NaiveBeyes();
-		char val='t';
+		char val='n';
 		if(val=='n'){
 			nb.parseInput("lymph_train.arff",nb.train);
+//			nb.test("lymph_train.arff",nb.train);
 			nb.computePd();
+//			nb.test("lymph_test.arff",nb.test);
 			nb.parseInput("lymph_test.arff",nb.test);
 			nb.predictClass();
 		}
 		else if (val=='t'){
+//			nb.test("lymph_train.arff",nb.train);
 			nb.parseInput("lymph_train.arff",nb.train);
 			nb.computePd();
 			nb.computeWeight();
 			nb.primMst();
 			nb.computePdForTan();
-	//		nb.verify(nb.train);
+			nb.verify(nb.train);
 			nb.parseInput("lymph_test.arff",nb.test);
+//			nb.test("lymph_test.arff",nb.test);
 			nb.printTanNw();
 			System.out.println();
 			nb.tanPredict();
