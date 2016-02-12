@@ -34,8 +34,8 @@ class PrimHelper{
 
 class PrimComparator implements Comparator<PrimHelper>{
 	public int compare(PrimHelper obj1, PrimHelper obj2){
-		if(obj1.weight<obj2.weight) return -1;
-		else if (obj1.weight>obj2.weight) return 1;
+		if(obj1.weight<obj2.weight) return 1;
+		else if (obj1.weight>obj2.weight) return -1;
 		else {
 			if(obj1.chosenVertex<obj2.chosenVertex) return -1;
 			else if (obj1.chosenVertex>obj2.chosenVertex) return 1;
@@ -144,12 +144,15 @@ public class NaiveBeyes {
 		train=new SampleData();
 		test=new SampleData();
 	}
-	
-	void test(String name,SampleData obj){
+	/**
+	 * method that parses the input and stored it in the internal DS
+	 * @param name
+	 */
+	void parseInput(String name,SampleData obj){
 		try {
 		BufferedReader reader = new BufferedReader(new FileReader(name));
 		Instances data = new Instances(reader);
-		
+		String classPattern="class";
 		reader.close();
 		data.setClassIndex(data.numAttributes() - 1);
 		//read in attributes and values
@@ -166,25 +169,24 @@ public class NaiveBeyes {
 		    String att=m2.group(1);
 		    String[] each = att.split(",");
 		    
-		     if(feature.equals("class")){
-		    	  obj.classArr[0]=each[0].trim();
-		    	  obj.classArr[1]=each[1].trim();
+		     if(feature.trim().equals(classPattern.trim())){
+		    	 obj.classArr[0]=att.split(",")[0].trim();
+		    	 obj.classArr[1]=att.split(",")[1].trim();
 		      }else{
 		    	  LinkedHashMap<String,Pd> inner = new LinkedHashMap<String,Pd>();
-		    	  for(int k=0;k<each.length;k++){
-		    		  inner.put(each[k].trim(),new Pd(i));
-		    	  }
+		    	  for(String str:att.split(",")){
+		    		  inner.put(str.trim(),new Pd(i));
+			      }
 			      obj.attributes.put(feature,inner);
 			      obj.featNames.add(feature);
 		      }
 		}
 		
 		// put this rowData into train list
-		for (int i = 0;i < data.numInstances()-1;i++){
+		for (int i = 0;i < data.numInstances();i++){
 			Instance inst = data.instance(i);
 			List<String> inner = new ArrayList<String>();
 			for(String str:inst.toString().split(",")){
-//				System.out.print(str+" ");
 				inner.add(str);
 			}
 			obj.data.add(inner);
@@ -199,74 +201,7 @@ public class NaiveBeyes {
 			e.printStackTrace();
 		}
 	}
-	/**
-	 * method that parses the input and stored it in the internal DS
-	 * @param name
-	 */
-	private void parseInput(String name,SampleData obj) {
-		try{
-			File fin= new File(name);
-			FileInputStream fis = new FileInputStream(fin);
-			BufferedReader br = new BufferedReader(new InputStreamReader(fis));
-			String line = null;
-			String dataPattern="@d";
-			String attPattern="@a";
-			String classPattern="class";
-			int i=-1;
-			//parse the line one at a time. break when data is found. put the attributes in LinkedHashMap<String,LinkedHashMap<String,Pd>> attributes
-			while ((line = br.readLine()) != null) {
-				//System.out.println(line.substring(0,2));
-				if(line.substring(0,2).equalsIgnoreCase(attPattern)){
-					  i++;
-					  //regex's , pattern and matcher objects to get the feature name and the attributes of the feature
-					  String featRegex = "\'([^\']*)\'";
-				      String attrRegex="\\{(.*?)\\}";
-				      Pattern p1 = Pattern.compile(featRegex);
-				      Pattern p2 = Pattern.compile(attrRegex);
-				      Matcher m1 = p1.matcher(line);
-				      Matcher m2 = p2.matcher(line);
-				      m1.find();m2.find();
-				      String feature = m1.group(1);
-				      String att=m2.group(1);
-				      
-				      //if the feature is class then populate the class array else populate the inner LinkedHashMap with attribute to Pd objects
-				      
-				      if(feature.equals(classPattern)){
-				    	  obj.classArr[0]=att.split(",")[0].trim();
-				    	  obj.classArr[1]=att.split(",")[1].trim();
-				      }else{
-				    	  LinkedHashMap<String,Pd> inner = new LinkedHashMap<String,Pd>();
-					      for(String str:att.split(",")){
-						      inner.put(str.trim(),new Pd(i));
-					      }
-					      obj.attributes.put(feature,inner);
-					      obj.featNames.add(feature);
-				      }
-				      
-				} else if(line.substring(0, 2).equalsIgnoreCase(dataPattern)){
-					break;
-				}
-			}
-			//parse the remaining data and put it into List<List> data
-			while ((line = br.readLine()) != null) {
-				List<String> inner = new ArrayList<String>();
-				for(String str:line.split(",")){
-					inner.add(str);
-				}
-				obj.data.add(inner);
-			}
-			
-			//since attributes LinkedHashMap is full , populate the number_of_attributes variable. Populate the total number of data instances
-			obj.setTotalAttNo(obj.attributes.size());
-			obj.setTotalData(obj.data.size());
-			br.close();
-			
-			//call this method to calculate the numbers for each class vars
-			noClassVars();
-		}catch(IOException e){
-			System.out.println(e.getMessage());
-		}
-	}
+	
 	
 	/**
 	 * method that prints the attribute LinkedHashMap for verification
@@ -402,6 +337,7 @@ public class NaiveBeyes {
 			double ans1=prod1/posterior;
 			double ans2=prod2/posterior;
 			double finalans=0;
+			NumberFormat formatter = new DecimalFormat("#0.000000000000");
 			if(Double.compare(prod1,prod2)>=0){
 				op=test.classArr[0];
 				finalans=ans1;
@@ -411,7 +347,8 @@ public class NaiveBeyes {
 			}
 			
 			if(op.trim().equalsIgnoreCase(rowData.get(train.totalAttNo).trim())) count++;
-			System.out.println(op+" "+rowData.get(train.totalAttNo)+" "+finalans);
+			System.out.print(op+" "+rowData.get(train.totalAttNo)+" ");
+			System.out.println(formatter.format(finalans));
 		}
 		System.out.println();
 		System.out.println(count);
@@ -476,44 +413,11 @@ public class NaiveBeyes {
 		}
 	}
 	
+	
 	/**
 	 * compute maximal spanning tree using Prim
 	 */
 	void primMst(){
-		List<Integer> vnew= new ArrayList<Integer>();
-		List<Integer> allV= new ArrayList<Integer>();
-		for(int i=0;i<train.totalAttNo;i++) allV.add(i);
-		vnew.add(allV.get(0));
-		Edge chosenEdge;int chosenVertex;
-		
-		while(vnew.size()<allV.size()){
-			double max=-1;chosenEdge=null;chosenVertex=0;
-			for(int u:vnew){
-				List<Double> temp=train.adjList.get(u);
-				for(int j=0;j<temp.size();j++){
-					if(!vnew.contains(new Integer(j))){
-						double wt=temp.get(j);
-						if(Double.compare(wt,max)>0){
-							max=wt;
-							int parent=u;
-							int other=j;
-							chosenVertex=j;
-							if(j==0||u==0) {
-								if(j==0) {parent=j;other=u;}
-								else {parent=u;other=j;}
-							}
-							chosenEdge=new Edge(parent,other,wt);
-						}
-					}
-				}
-			}
-			vnew.add(chosenVertex);
-			train.mst.add(chosenEdge);
-		}
-		fillParentHash();
-	}
-	
-	void primMst1(){
 		List<Integer> vnew= new ArrayList<Integer>();
 		List<Integer> allV= new ArrayList<Integer>();
 		for(int i=0;i<train.totalAttNo;i++) allV.add(i);
@@ -671,27 +575,47 @@ public class NaiveBeyes {
 			System.out.println(self+" "+parentVal+" class");
 		}
 	}
+	/**
+	 * method to get data needed to plot learning curves
+	 */
+	void plotGraphs(){
+		int[] samples={25,50,100};
+		for(int i=0;i<samples.length;i++){
+			for(int k=0;k<4;k++){
+				Collections.shuffle(train.data);
+				List<List<String>> tempList= new ArrayList<List<String>>();
+				for(int j=0;j<samples[i];j++){
+					tempList.add(train.data.get(j));
+				}
+				//train on tempList and test on main test file . get accuracy and print it 
+			}
+		}
+		
+		
+	}
 	public static void main(String args[]){
+		String trainFile=args[0];
+		String testFile=args[1];
+		String val=args[2];
+		String naive="n";
+		String tan="t";
 		NaiveBeyes nb= new NaiveBeyes();
-		char val='n';
-		if(val=='n'){
-			nb.parseInput("lymph_train.arff",nb.train);
-//			nb.test("lymph_train.arff",nb.train);
+		if(val.trim().equalsIgnoreCase(naive)){
+			//NB working with arff reader
+			nb.parseInput(trainFile,nb.train);
 			nb.computePd();
-//			nb.test("lymph_test.arff",nb.test);
-			nb.parseInput("lymph_test.arff",nb.test);
+			nb.parseInput(testFile,nb.test);
 			nb.predictClass();
 		}
-		else if (val=='t'){
-//			nb.test("lymph_train.arff",nb.train);
-			nb.parseInput("lymph_train.arff",nb.train);
+		else if(val.trim().equalsIgnoreCase(tan)){
+			//tan working with arff reader
+			nb.parseInput(trainFile,nb.train);
 			nb.computePd();
 			nb.computeWeight();
 			nb.primMst();
 			nb.computePdForTan();
-			nb.verify(nb.train);
-			nb.parseInput("lymph_test.arff",nb.test);
-//			nb.test("lymph_test.arff",nb.test);
+//			nb.verify(nb.train);
+			nb.parseInput(testFile,nb.test);
 			nb.printTanNw();
 			System.out.println();
 			nb.tanPredict();
