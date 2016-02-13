@@ -108,6 +108,7 @@ class SampleData{
 	List<List<Double>> adjList;
 	List<Edge> mst;
 	LinkedHashMap<Integer,Integer> parent;
+	int correct;
 	
 	SampleData(){
 		attributes = new LinkedHashMap<String,LinkedHashMap<String,Pd>>();
@@ -352,6 +353,7 @@ public class NaiveBeyes {
 		}
 		System.out.println();
 		System.out.println(count);
+		test.correct=count;
 		
 	}
 	/**
@@ -561,6 +563,7 @@ public class NaiveBeyes {
 		}
 		System.out.println();
 		System.out.println(match);
+		test.correct=match;
 	}
 	
 	/**
@@ -578,21 +581,72 @@ public class NaiveBeyes {
 	/**
 	 * method to get data needed to plot learning curves
 	 */
-	void plotGraphs(){
+	static void plotGraphs(){
+		NaiveBeyes nb1= new NaiveBeyes();
+		nb1.parseInput("lymph_train.arff",nb1.train);
 		int[] samples={25,50,100};
+		System.out.println("Naive Bayes");
 		for(int i=0;i<samples.length;i++){
 			for(int k=0;k<4;k++){
-				Collections.shuffle(train.data);
+				List<List<String>> toShuffle= nb1.train.data;
+				Collections.shuffle(toShuffle);
 				List<List<String>> tempList= new ArrayList<List<String>>();
 				for(int j=0;j<samples[i];j++){
-					tempList.add(train.data.get(j));
+					tempList.add(toShuffle.get(j));
 				}
-				//train on tempList and test on main test file . get accuracy and print it 
+				double accuracy=naiveGraphHelper(tempList);
+				System.out.println(samples[i]+","+accuracy*100);
+			}
+		}
+		System.out.println("TAN");
+		for(int i=0;i<samples.length;i++){
+			for(int k=0;k<4;k++){
+				List<List<String>> toShuffle= nb1.train.data;
+				Collections.shuffle(toShuffle);
+				List<List<String>> tempList= new ArrayList<List<String>>();
+				for(int j=0;j<samples[i];j++){
+					tempList.add(toShuffle.get(j));
+				}
+				double accuracy=tanGraphHelper(tempList);
+				System.out.println(samples[i]+","+accuracy*100);
 			}
 		}
 		
 		
 	}
+	static double tanGraphHelper(List<List<String>> newData){
+		String trainFile="lymph_train.arff";
+		String testFile="lymph_test.arff";
+		NaiveBeyes nb= new NaiveBeyes();
+		nb.parseInput(trainFile,nb.train);
+		nb.train.data=newData;
+		nb.train.totalData=newData.size();
+		nb.computePd();
+		nb.computeWeight();
+		nb.primMst();
+		nb.computePdForTan();
+		nb.parseInput(testFile,nb.test);
+		nb.tanPredict();
+		int correct=nb.test.correct;
+		int total=nb.test.totalData;
+		return correct*1.0/total;
+	}
+	static double naiveGraphHelper(List<List<String>> newData){
+		String trainFile="lymph_train.arff";
+		String testFile="lymph_test.arff";
+		NaiveBeyes nb= new NaiveBeyes();
+		nb.parseInput(trainFile,nb.train);
+		nb.train.data=newData;
+		nb.train.totalData=newData.size();
+		nb.computePd();
+		nb.parseInput(testFile,nb.test);
+		nb.predictClass();
+		int correct=nb.test.correct;
+		int total=nb.test.totalData;
+		return correct*1.0/total;
+	}
+	
+	
 	public static void main(String args[]){
 		String trainFile=args[0];
 		String testFile=args[1];
